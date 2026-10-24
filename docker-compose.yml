@@ -21,6 +21,8 @@ services:
       - /etc/nginx/generated
     logging:
       driver: journald
+      options:
+        tag: nginx
     labels:
       com.centurylinklabs.watchtower.enable: "true"
 
