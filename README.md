@@ -10,12 +10,19 @@ Reverse-proxy nginx (`nginx:stable`) auto-mis à jour par un watchtower externe 
 - `certs/` : état du module ACME (clé de compte, certificats), non versionné
 - `services.d/` : confs nginx des services (`*.conf` à la racine uniquement : nginx n'a pas d'include récursif) ; pointer `SERVICES_DIR` vers le clone de `raspi-01-nginx-conf` dans `.env`
 
-## Démarrage
+## Déploiement
+
+Déploiement manuel (Ansible ne gère que la structure des serveurs : Docker, fail2ban…) :
 
 ```sh
-cp .env.example .env
+git clone git@github.com:Haelle/docker-nginx.git ~/apps/docker-nginx
+git clone git@github.com:Haelle/raspi-01-nginx-conf.git ~/apps/raspi-01-nginx-conf
+cd ~/apps/docker-nginx
+cp .env.example .env   # ACME_EMAIL, SERVICES_DIR=/home/<user>/apps/raspi-01-nginx-conf
 docker compose up -d
 ```
+
+`ACME_DIRECTORY` (défaut : production Let's Encrypt) permet de pointer sur le serveur de staging pendant les tests : les validations HTTP-01 ratées comptent dans les limites de production. Vider `certs/` en repassant en production.
 
 Recharger la conf :
 

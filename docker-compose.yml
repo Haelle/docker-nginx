@@ -9,6 +9,7 @@ services:
       NGINX_ENTRYPOINT_LOCAL_RESOLVERS: "1"
       NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx/generated
       ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL must be set in .env}
+      ACME_DIRECTORY: ${ACME_DIRECTORY:-https://acme-v02.api.letsencrypt.org/directory}
     volumes:
       - ./conf.d:/etc/nginx/conf.d:ro
       - ./templates:/etc/nginx/templates:ro
