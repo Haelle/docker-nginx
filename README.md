@@ -1,6 +1,6 @@
 # docker-nginx
 
-Reverse-proxy nginx (`nginx:stable`) auto-mis à jour par un watchtower externe (label `com.centurylinklabs.watchtower.enable=true`), avec logs envoyés dans journald (pilote de logs Docker) et lus par fail2ban sur l'hôte.
+Reverse-proxy nginx (`nginx:stable`) auto-mis à jour par un watchtower externe (label `com.centurylinklabs.watchtower.enable=true`), avec logs envoyés dans journald (pilote de logs Docker) et analysés par CrowdSec sur l'hôte.
 
 ## Arborescence
 
@@ -12,7 +12,7 @@ Reverse-proxy nginx (`nginx:stable`) auto-mis à jour par un watchtower externe 
 
 ## Déploiement
 
-Déploiement manuel (Ansible ne gère que la structure des serveurs : Docker, fail2ban…) :
+Déploiement manuel (Ansible ne gère que la structure des serveurs : Docker, CrowdSec…) :
 
 ```sh
 git clone git@github.com:Haelle/docker-nginx.git ~/apps/docker-nginx
@@ -50,8 +50,8 @@ Le challenge HTTP-01 est intercepté par le module sur tout `server` en écoute 
 
 ## Choix
 
-- `network_mode: host` : nginx voit les vraies IP clientes et le trafic passe par la chaîne `INPUT`, donc les bans fail2ban et les règles UFW s'appliquent (avec des ports publiés, Docker passe par `FORWARD` et contourne les deux). Les services sont joints via `127.0.0.1:<port>`.
-- Logs : l'image envoie `access.log` sur stdout et `error.log` sur stderr ; le pilote `journald` les écrit dans le journal systemd avec le champ `CONTAINER_NAME=nginx` et l'identifiant syslog `nginx` (`tag: nginx`, sinon Docker met l'ID du conteneur et les filtres nginx de fail2ban, qui attendent `nginx[pid]:`, ne matchent rien) (rotation gérée par journald, pas de logrotate). Les jails `nginx-*` de fail2ban les lisent avec `backend = systemd` et `journalmatch = CONTAINER_NAME=nginx` (cf. `jail.local` de home_cloud_ansible). Consultation : `journalctl CONTAINER_NAME=nginx -f` ou `docker logs -f nginx` ; `-p err` pour les seules erreurs (stderr).
+- `network_mode: host` : nginx voit les vraies IP clientes et le trafic passe par la chaîne `INPUT`, donc les bans CrowdSec (bouncer nftables) et les règles UFW s'appliquent (avec des ports publiés, Docker passe par `FORWARD` et contourne les deux). Les services sont joints via `127.0.0.1:<port>`.
+- Logs : l'image envoie `access.log` sur stdout et `error.log` sur stderr ; le pilote `journald` les écrit dans le journal systemd avec le champ `CONTAINER_NAME=nginx` (rotation gérée par journald, pas de logrotate). CrowdSec les lit via le socket Docker (source `docker`, `container_name: nginx`, cf. rôle `install_crowdsec` de home_cloud_ansible) : le nom du conteneur doit rester `nginx`. Consultation : `journalctl CONTAINER_NAME=nginx -f` ou `docker logs -f nginx` ; `-p err` pour les seules erreurs (stderr).
 - Zones de rate limiting (`sync`, `web`, `auth`, `media`, `download`, `admin`, `chat`) dans `00-rate-limit-zones.conf`, statut 429 : chaque rejet est journalisé « limiting requests » et alimente le jail `nginx-limit-req`.
 - TLS 1.3 uniquement (`conf.d/00-ssl-protocols.conf`, profil « modern » de Mozilla) : pas de `ssl_ciphers`, TLS 1.3 choisit ses suites. `ssl_protocols` est au niveau `http` et non dans `snippets/ssl-hardening.conf` pour qu'un service puisse le surcharger : déclaré deux fois dans un même `server`, nginx cumule les valeurs au lieu de remplacer (simple warning).
 - TLS : module ACME officiel (`ngx_http_acme_module`, livré dans `nginx:stable`) chargé via `command: nginx -g "load_module ..."` : `load_module` est interdit dans `conf.d` (inclus dans `http {}`) et on ne remplace pas le `nginx.conf` de l'image pour garder ses évolutions avec les auto-updates. `/etc/letsencrypt` est monté en lecture seule pour inspection.
